@@ -1,0 +1,24 @@
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    @Autowired
+    private AccountService accountService;
+
+    @GetMapping("/ids")
+    public List<Long> getAccountIds(@RequestParam Long customerId,
+                                    @RequestParam String accountType,
+                                    @RequestParam(defaultValue = "10") int limit) {
+        return accountService.getAccountIds(customerId, accountType, limit);
+    }
+
+    @GetMapping("/latest-status")
+    public AccountNew getLatestStatus(@RequestParam Long customerId,
+                                      @RequestParam String accountType) {
+        return accountService.getLatestStatus(customerId, accountType);
+    }
+}

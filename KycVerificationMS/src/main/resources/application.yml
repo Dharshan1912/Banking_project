@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: KycVerificationMS
+
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521:XE
+    username: SYSTEM
+    password: oracle
+    driver-class-name: oracle.jdbc.OracleDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    protocol: smtp
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+server:
+  port: 8083
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:4567/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+
+# Microservice URLs for inter-service communication
+kycDocumentMs:
+  url: http://localhost:8082/api/kyc/
+
+customerMs:
+  url: http://localhost:8081/api/customers/

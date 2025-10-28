@@ -1,0 +1,88 @@
+package com.ofss.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import java.util.Date;
+
+@Entity
+@Table(name = "KYC_DOCUMENTS_NEW")
+public class KycDocument {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "kyc_seq_gen")
+    @SequenceGenerator(name = "kyc_seq_gen", sequenceName = "SEQ_KYC_ID_NEW", allocationSize = 1)
+    @Column(name = "KYC_ID")
+    private Long kycId;
+
+    @Column(name = "CUSTOMER_ID", nullable = false)
+    private Long customerId;
+
+    @NotBlank(message = "PAN file name is required")
+    @Column(name = "PAN_FILE_NAME", nullable = false)
+    private String panFileName;
+
+    @Column(name = "PAN_FILE_TYPE")
+    private String panFileType;
+
+    @Lob
+    @Column(name = "PAN_FILE_CONTENT")
+    private String panFileContent;
+
+    @NotBlank(message = "Aadhaar file name is required")
+    @Column(name = "AADHAAR_FILE_NAME", nullable = false)
+    private String aadhaarFileName;
+
+    @Column(name = "AADHAAR_FILE_TYPE")
+    private String aadhaarFileType;
+
+    @Lob
+    @Column(name = "AADHAAR_FILE_CONTENT")
+    private String aadhaarFileContent;
+
+    @NotBlank(message = "Photo file name is required")
+    @Column(name = "PHOTO_FILE_NAME", nullable = false)
+    private String photoFileName;
+
+    @Column(name = "PHOTO_FILE_TYPE")
+    private String photoFileType;
+
+    @Lob
+    @Column(name = "PHOTO_FILE_CONTENT")
+    private String photoFileContent;
+
+    @Column(name = "STATUS")
+    private String status = "PENDING_VERIFICATION";
+
+    @Temporal(TemporalType.DATE)
+    @Column(name = "UPLOAD_DATE")
+    private Date uploadDate = new Date();
+
+
+    // Getters and Setters
+    public Long getKycId() { return kycId; }
+    public void setKycId(Long kycId) { this.kycId = kycId; }
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
+    public String getPanFileName() { return panFileName; }
+    public void setPanFileName(String panFileName) { this.panFileName = panFileName; }
+    public String getPanFileType() { return panFileType; }
+    public void setPanFileType(String panFileType) { this.panFileType = panFileType; }
+    public String getPanFileContent() { return panFileContent; }
+    public void setPanFileContent(String panFileContent) { this.panFileContent = panFileContent; }
+    public String getAadhaarFileName() { return aadhaarFileName; }
+    public void setAadhaarFileName(String aadhaarFileName) { this.aadhaarFileName = aadhaarFileName; }
+    public String getAadhaarFileType() { return aadhaarFileType; }
+    public void setAadhaarFileType(String aadhaarFileType) { this.aadhaarFileType = aadhaarFileType; }
+    public String getAadhaarFileContent() { return aadhaarFileContent; }
+    public void setAadhaarFileContent(String aadhaarFileContent) { this.aadhaarFileContent = aadhaarFileContent; }
+    public String getPhotoFileName() { return photoFileName; }
+    public void setPhotoFileName(String photoFileName) { this.photoFileName = photoFileName; }
+    public String getPhotoFileType() { return photoFileType; }
+    public void setPhotoFileType(String photoFileType) { this.photoFileType = photoFileType; }
+    public String getPhotoFileContent() { return photoFileContent; }
+    public void setPhotoFileContent(String photoFileContent) { this.photoFileContent = photoFileContent; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Date getUploadDate() { return uploadDate; }
+    public void setUploadDate(Date uploadDate) { this.uploadDate = uploadDate; }
+}

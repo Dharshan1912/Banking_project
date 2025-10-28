@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: KycDocumentMS
+
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521:XE
+    username: SYSTEM
+    password: oracle
+    driver-class-name: oracle.jdbc.OracleDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+server:
+  port: 8082
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:4567/eureka/
+    fetch-registry: true
+    register-with-eureka: true

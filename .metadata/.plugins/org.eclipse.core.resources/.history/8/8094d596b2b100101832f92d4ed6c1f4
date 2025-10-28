@@ -1,0 +1,67 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${kyc.base-url}")
+    private String kycBaseUrl; // e.g., http://localhost:8083/api/kyc-verification/status-by-customer/
+
+    @Value("${account.number.length:12}")
+    private int accountNumberLength; // optional from application.yml
+
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // 1️⃣ Check KYC status from KYC microservice
+            String kycStatus = restTemplate.getForObject(kycBaseUrl + customerId, String.class);
+
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity
+                        .badRequest()
+                        .body("Cannot create account. KYC is not approved for this customer.");
+            }
+
+            // 2️⃣ Generate random account number
+            String accountNumber = generateAccountNumber(accountNumberLength);
+
+            // 3️⃣ Create account
+            Account account = new Account();
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType);
+            account.setAccountStatus("ACTIVE"); // default
+            account.setAccountNumber(accountNumber);
+
+            Account savedAccount = accountRepository.save(account);
+            return ResponseEntity.ok(savedAccount);
+
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(500)
+                    .body("Error while creating account: " + e.getMessage());
+        }
+    }
+
+    private String generateAccountNumber(int length) {
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < length; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
+    }
+}

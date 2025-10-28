@@ -1,0 +1,25 @@
+package com.ofss.repository;
+
+import com.ofss.model.Customer;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface CustomerRepository extends JpaRepository<Customer, Long> {
+
+    // Check if email exists
+    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE c.email = :email")
+    boolean emailExists(@Param("email") String email);
+
+    // Check if phone exists
+    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE c.phone = :phone")
+    boolean phoneExists(@Param("phone") String phone);
+
+    // Check if PAN exists
+    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE c.pan = :pan")
+    boolean panExists(@Param("pan") String pan);
+
+    // Check if Aadhaar exists
+    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE c.aadhaar = :aadhaar")
+    boolean aadhaarExists(@Param("aadhaar") String aadhaar);
+}

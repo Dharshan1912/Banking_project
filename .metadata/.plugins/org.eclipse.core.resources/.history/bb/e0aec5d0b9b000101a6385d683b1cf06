@@ -1,0 +1,38 @@
+package com.ofss.model;
+import jakarta.persistence.*;
+import java.util.Date;
+
+@Entity
+@Table(name = "ACCOUNT_NEW")
+public class AccountNew {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ACCOUNT_ID")
+    private Long accountId;
+
+    @Column(name = "CUSTOMER_ID")
+    private Long customerId;
+
+    @Column(name = "ACCOUNT_TYPE")
+    private String accountType;
+
+    @Column(name = "STATUS")
+    private String status;
+
+    @Column(name = "LAST_UPDATED")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date lastUpdated;
+
+    // Getters and Setters
+    public Long getAccountId() { return accountId; }
+    public void setAccountId(Long accountId) { this.accountId = accountId; }
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
+    public String getAccountType() { return accountType; }
+    public void setAccountType(String accountType) { this.accountType = accountType; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Date getLastUpdated() { return lastUpdated; }
+    public void setLastUpdated(Date lastUpdated) { this.lastUpdated = lastUpdated; }
+}

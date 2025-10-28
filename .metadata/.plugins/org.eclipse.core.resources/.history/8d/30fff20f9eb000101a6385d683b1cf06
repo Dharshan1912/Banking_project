@@ -1,0 +1,36 @@
+package com.ofss.controller;
+
+import com.ofss.dto.KycVerificationRequest;
+import com.ofss.model.KycVerification;
+import com.ofss.service.KycVerificationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/kyc-verification")
+public class KycVerificationController {
+
+    @Autowired
+    private KycVerificationService verificationService;
+
+    @PostMapping("/verify")
+    public ResponseEntity<KycVerification> verifyKyc(@RequestBody KycVerificationRequest request) {
+        KycVerification savedVerification = verificationService.verifyKyc(
+                request.getKycId(),
+                request.getVerifiedBy(),
+                request.getStatus(),
+                request.getRemarks()
+        );
+        return ResponseEntity.ok(savedVerification);
+    }
+
+    @GetMapping("/status/{kycId}")
+    public ResponseEntity<String> checkKycStatus(@PathVariable Long kycId) {
+        Optional<KycVerification> verification = verificationService.getVerificationStatus(kycId);
+        return verification.map(v -> ResponseEntity.ok(v.getStatus()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+}

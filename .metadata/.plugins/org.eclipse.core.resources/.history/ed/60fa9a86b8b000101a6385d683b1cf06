@@ -1,0 +1,41 @@
+package com.ofss.controller;
+
+import com.ofss.dto.AccountRequest;
+import com.ofss.model.Account;
+import com.ofss.service.AccountService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    @Autowired
+    private AccountService accountService;
+
+    // Create account
+    @PostMapping("/create")
+    public ResponseEntity<?> createAccount(@RequestBody AccountRequest request) {
+        try {
+            Account account = accountService.createAccount(request);
+            return ResponseEntity.ok(account);
+        } catch (ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+        }
+    }
+
+    // Get all accounts
+    @GetMapping
+    public ResponseEntity<List<Account>> getAllAccounts() {
+        return ResponseEntity.ok(accountService.getAllAccounts());
+    }
+
+    // Get accounts by customer
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<List<Account>> getAccountsByCustomer(@PathVariable Long customerId) {
+        return ResponseEntity.ok(accountService.getAccountsByCustomer(customerId));
+    }
+}

@@ -1,0 +1,16 @@
+package com.ofss.repository;
+
+import com.ofss.model.KycVerification;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface KycVerificationRepository extends JpaRepository<KycVerification, Long> {
+
+    // Get all verifications for a KYC
+    List<KycVerification> findByKycIdOrderByVerificationDateDesc(Long kycId);
+
+    // Get only the latest verification
+    Optional<KycVerification> findTopByKycIdOrderByVerificationDateDesc(Long kycId);
+}
+

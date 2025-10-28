@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: AccountMS
+
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521:XE
+    username: SYSTEM
+    password: oracle
+    driver-class-name: oracle.jdbc.OracleDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8084
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:4567/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+
+account:
+  number:
+    length: 12   # 12-digit random number
+
+kycVerificationMs:
+  url: http://localhost:8083/api/kyc-verification/   # KYC Verification MS
+
+kycDocumentMs:
+  url: http://localhost:8082/api/kyc/        # KYC Document MS
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,76 @@
+package com.ofss.service;
+
+import com.ofss.model.KycDocument;
+import com.ofss.repository.KycDocumentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Optional;
+
+@Service
+public class KycDocumentService {
+
+    @Autowired
+    private KycDocumentRepository kycDocumentRepository;
+
+    public ResponseEntity<?> saveKycFiles(Long customerId, MultipartFile panFile, MultipartFile aadhaarFile, MultipartFile photoFile, Boolean reupload) {
+        try {
+            if (customerId == null) {
+                return ResponseEntity.badRequest().body("Customer ID is required!");
+            }
+
+            KycDocument doc = kycDocumentRepository.findByCustomerId(customerId)
+                    .stream()
+                    .findFirst()
+                    .orElse(new KycDocument());
+
+            doc.setCustomerId(customerId);
+
+            // PAN file
+            if (panFile != null && !panFile.isEmpty()) {
+                doc.setPanFileName(panFile.getOriginalFilename());
+                doc.setPanFileType(panFile.getContentType());
+                doc.setPanFileContent(Base64.getEncoder().encodeToString(panFile.getBytes()));
+            }
+
+            // Aadhaar file
+            if (aadhaarFile != null && !aadhaarFile.isEmpty()) {
+                doc.setAadhaarFileName(aadhaarFile.getOriginalFilename());
+                doc.setAadhaarFileType(aadhaarFile.getContentType());
+                doc.setAadhaarFileContent(Base64.getEncoder().encodeToString(aadhaarFile.getBytes()));
+            }
+
+            // Photo file
+            if (photoFile != null && !photoFile.isEmpty()) {
+                doc.setPhotoFileName(photoFile.getOriginalFilename());
+                doc.setPhotoFileType(photoFile.getContentType());
+                doc.setPhotoFileContent(Base64.getEncoder().encodeToString(photoFile.getBytes()));
+            }
+
+            // Status logic
+            if (reupload != null && reupload) {
+                doc.setStatus("PENDING_VERIFICATION");
+                doc.setReupload(true);
+            } else {
+                // Initial upload requires all three files
+                if (doc.getPanFileContent() == null || doc.getAadhaarFileContent() == null || doc.getPhotoFileContent() == null) {
+                    return ResponseEntity.badRequest().body("All three files are mandatory on first upload!");
+                }
+                doc.setStatus("PENDING_VERIFICATION");
+                doc.setReupload(false);
+            }
+
+            KycDocument savedDoc = kycDocumentRepository.save(doc);
+            return ResponseEntity.ok("KYC submitted successfully! Status: " + savedDoc.getStatus());
+
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("Error processing files: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Unexpected error: " + e.getMessage());
+        }
+    }
+}

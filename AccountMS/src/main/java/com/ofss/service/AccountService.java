@@ -1,0 +1,91 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+    
+    @Autowired
+    private RestTemplate restTemplate;
+ 
+    // This matches your YAML key
+    @Value("${kycVerificationMs.url}")
+    private String kycBaseUrl; // e.g., http://localhost:8083/api/kyc-verification/
+
+    @Value("${account.number.length:12}")
+    private int accountNumberLength; // default 12 if not provided
+    
+    @Value("${kycDocumentMs.url}")
+    private String kycDocumentMs;
+
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // ✅ Check KYC status from KYC microservice
+        	
+        	Long kycId = restTemplate.getForObject(kycDocumentMs+"customer/"+customerId.toString(), Long.class);
+//           // http://localhost:8082/api/kyc/customer/12
+        	
+            String kycStatus = restTemplate.getForObject("http://localhost:8083/api/kyc-verification/status/" + kycId.toString(), String.class);
+
+            // 2️⃣ Check if account of this type already exists for customer
+            if (accountRepository.findByCustomerIdAndAccountType(customerId, accountType).isPresent()) {
+                return ResponseEntity.badRequest().body("Customer already has a " + accountType + " account.");
+            }
+
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity.badRequest().body("Cannot create account. KYC not approved.");
+            }
+            // ✅ Generate random account number
+            String accountNumber = generateAccountNumber(accountNumberLength);
+
+            // ✅ Create account
+            Account account = new Account();
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType);
+            account.setAccountStatus("ACTIVE");
+            account.setAccountNumber(accountNumber);
+
+            Account savedAccount = accountRepository.save(account);
+            return ResponseEntity.ok(savedAccount);
+
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(500)
+                    .body("Error while creating account: " + e.getMessage());
+        }
+    }
+
+    private String generateAccountNumber(int length) {
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.append(random.nextInt(10)); 
+        }
+        return sb.toString();
+    }
+    
+    public ResponseEntity<List<Account>> getAllAccount()
+    {
+    	try {
+    	List<Account> accounts = accountRepository.findAll();
+    	return ResponseEntity.ok(accounts);
+    	}catch(Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .build();
+        }
+    	}
+    }
+

@@ -1,0 +1,66 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${kyc.base-url}")
+    private String kycVerificationUrl; // http://localhost:8083/api/kyc-verification/status/
+
+    // ✅ Create new account
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // 1️⃣ Check KYC status
+            String kycStatus = restTemplate.getForObject(kycVerificationUrl + customerId, String.class);
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity.badRequest().body("Cannot create account. KYC not approved.");
+            }
+
+            // 2️⃣ Check if account of this type already exists for customer
+            if (accountRepository.findByCustomerIdAndAccountType(customerId, accountType).isPresent()) {
+                return ResponseEntity.badRequest().body("Customer already has a " + accountType + " account.");
+            }
+
+            // 3️⃣ Generate mock 12-digit account number
+            String accountNumber = generateAccountNumber();
+
+            // 4️⃣ Save account
+            Account account = new Account();
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType.toUpperCase());
+            account.setAccountStatus("ACTIVE");
+            account.setAccountNumber(accountNumber);
+
+            Account saved = accountRepository.save(account);
+
+            return ResponseEntity.ok("Account created successfully! Account Number: " + saved.getAccountNumber());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error creating account: " + e.getMessage());
+        }
+    }
+
+    private String generateAccountNumber() {
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
+    }
+}

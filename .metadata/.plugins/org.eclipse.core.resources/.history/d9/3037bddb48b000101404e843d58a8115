@@ -1,0 +1,54 @@
+package com.ofss.controller;
+
+import com.ofss.model.KycDocument;
+import com.ofss.service.KycDocumentService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/kyc")
+public class KycDocumentController {
+
+    @Autowired
+    private KycDocumentService kycDocumentService;
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadKyc(
+            @RequestParam Long customerId,
+            @RequestParam(required = false) MultipartFile panFile,
+            @RequestParam(required = false) MultipartFile aadhaarFile,
+            @RequestParam(required = false) MultipartFile photoFile,
+            @RequestParam(defaultValue = "false") boolean reupload) {
+        return kycDocumentService.saveKycFiles(customerId, panFile, aadhaarFile, photoFile, reupload);
+    }
+
+    @GetMapping("/{kycId}")
+    public ResponseEntity<KycDocument> getKyc(@PathVariable Long kycId) {
+        return kycDocumentService.getKycById(kycId);
+    }
+
+    @GetMapping("/file/{kycId}/{type}")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long kycId, @PathVariable String type) {
+        return kycDocumentService.getFileByType(kycId, type);
+    }
+
+    @PutMapping("/update-status/{customerId}")
+    public ResponseEntity<String> updateStatus(
+            @PathVariable Long customerId,
+            @RequestBody StatusUpdateRequest request) {
+        kycDocumentService.updateStatus(customerId, request.getStatus(), request.isReupload());
+        return ResponseEntity.ok("Status updated successfully!");
+    }
+
+    public static class StatusUpdateRequest {
+        private String status;
+        private boolean reupload;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public boolean isReupload() { return reupload; }
+        public void setReupload(boolean reupload) { this.reupload = reupload; }
+    }
+}

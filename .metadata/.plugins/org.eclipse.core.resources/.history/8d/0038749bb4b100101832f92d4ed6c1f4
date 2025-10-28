@@ -1,0 +1,54 @@
+package com.ofss.controller;
+
+import com.ofss.dto.KycVerificationRequest;
+import com.ofss.model.KycVerification;
+import com.ofss.service.KycVerificationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/kyc-verification")
+public class KycVerificationController {
+
+    @Autowired
+    private KycVerificationService verificationService;
+
+    // ✅ Verify a KYC document
+    @PostMapping("/verify")
+    public ResponseEntity<KycVerification> verifyKyc(@RequestBody KycVerificationRequest request) {
+        KycVerification savedVerification = verificationService.verifyKyc(
+                request.getKycId(),
+                request.getVerifiedBy(),
+                request.getStatus(),
+                request.getRemarks()
+        );
+        return ResponseEntity.ok(savedVerification);
+    }
+
+    // ✅ Get all verifications of a KYC (history)
+    @GetMapping("/history/{kycId}")
+    public ResponseEntity<List<KycVerification>> getVerificationHistory(@PathVariable Long kycId) {
+        List<KycVerification> history = verificationService.getVerificationHistory(kycId);
+        return ResponseEntity.ok(history);
+    }
+
+    // ✅ Get latest KYC verification status
+    @GetMapping("/status/{kycId}")
+    public ResponseEntity<String> getLatestStatus(@PathVariable Long kycId) {
+        String status = verificationService.getLatestStatus(kycId);
+        if (status == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(status);
+    }
+    
+    @GetMapping("/status-by-customer/{customerId}")
+    public ResponseEntity<String> getLatestStatusByCustomer(@PathVariable Long customerId) {
+        String status = verificationService.getLatestStatusByCustomer(customerId);
+        if (status == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(status);
+    }
+
+    
+}

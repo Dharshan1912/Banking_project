@@ -1,0 +1,67 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import com.ofss.dto.CreateAccountRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    private final String kycDocumentMsUrl = "http://localhost:8082/api/kyc/";
+    private final String kycVerificationMsUrl = "http://localhost:8083/api/kyc-verification/status/";
+
+    public Account createAccount(CreateAccountRequest request) {
+        Long customerId = request.getCustomerId();
+
+        // 1️⃣ Get all KYC documents for the customer
+        Map[] kycDocs = restTemplate.getForObject(
+                kycDocumentMsUrl + "customer/" + customerId,
+                Map[].class
+        );
+
+        if (kycDocs == null || kycDocs.length == 0) {
+            throw new RuntimeException("No KYC document found for customerId " + customerId);
+        }
+
+        // 2️⃣ Get latest KYC ID by uploadDate
+        Map latestDoc = Arrays.stream(kycDocs)
+                .max(Comparator.comparing(doc -> (String) doc.get("uploadDate")))
+                .get();
+
+        Long latestKycId = Long.valueOf(String.valueOf(latestDoc.get("kycId")));
+
+        // 3️⃣ Check KYC status
+        String status = restTemplate.getForObject(kycVerificationMsUrl + latestKycId, String.class);
+        if (!"APPROVED".equalsIgnoreCase(status)) {
+            throw new RuntimeException("KYC not approved yet! Status: " + status);
+        }
+
+        // 4️⃣ Create account
+        Account account = new Account();
+        account.setCustomerId(customerId);
+        account.setAccountType(request.getAccountType());
+        account.setAccountStatus("ACTIVE");
+        account.setAccountNumber(generateAccountNumber());
+
+        return accountRepository.save(account);
+    }
+
+    private String generateAccountNumber() {
+        // Simple random account number (can replace with your own logic)
+        return "ACCT-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+    }
+}

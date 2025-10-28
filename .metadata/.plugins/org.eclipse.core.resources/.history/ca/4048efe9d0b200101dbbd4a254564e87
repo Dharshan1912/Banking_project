@@ -1,0 +1,86 @@
+package com.ofss.controller;
+
+import com.ofss.model.KycDocument;
+import com.ofss.service.KycDocumentService;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/kyc")
+public class KycDocumentController {
+
+    @Autowired
+    private KycDocumentService kycDocumentService;
+
+    // ✅ Upload or re-upload KYC documents
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadKyc(
+            @RequestParam Long customerId,
+            @RequestParam(required = false) MultipartFile panFile,
+            @RequestParam(required = false) MultipartFile aadhaarFile,
+            @RequestParam(required = false) MultipartFile photoFile,
+            @RequestParam(defaultValue = "false") boolean reupload) {
+
+        return kycDocumentService.saveKycFiles(customerId, panFile, aadhaarFile, photoFile, reupload);
+    }
+    
+    @GetMapping("/customer/{cusId}")
+    public ResponseEntity<Long> getKycIdByCusid(@PathVariable Long cusId) {
+        Long kycId = kycDocumentService.getKycIdByCusId(cusId);
+        if (kycId != null) {
+            return ResponseEntity.ok(kycId);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // ✅ Get KYC details by KYC ID
+    @GetMapping("/{kycId}")
+    public ResponseEntity<KycDocument> getKyc(@PathVariable Long kycId) {
+        return kycDocumentService.getKycById(kycId);
+    }
+
+    // ✅ Download specific KYC file
+    @GetMapping("/file/{kycId}/{type}")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long kycId, @PathVariable String type) {
+        return kycDocumentService.getFileByType(kycId, type);
+    }
+
+    // ✅ Update status from KYC Verification MS
+    @PutMapping("/update-status/{customerId}")
+    public ResponseEntity<String> updateStatus(
+            @PathVariable Long customerId,
+            @RequestBody StatusUpdateRequest request) {
+
+        kycDocumentService.updateStatus(customerId, request.getStatus(), request.isReupload());
+        return ResponseEntity.ok("Status updated successfully!");
+    }
+
+    // 🔹 Inner class for status update payload
+    public static class StatusUpdateRequest {
+        private String status;
+        private boolean reupload;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public boolean isReupload() { return reupload; }
+        public void setReupload(boolean reupload) { this.reupload = reupload; }
+    }
+    
+ // ✅ Get all KYC IDs for a specific customer
+    @GetMapping("/kyc-ids-by-customer/{customerId}")
+    public ResponseEntity<List<Long>> getKycIdsByCustomer(@PathVariable Long customerId) {
+        // Call service method to fetch all KYC IDs of this customer
+        List<Long> kycIds = kycDocumentService.getKycIdsByCustomer(customerId);
+        return ResponseEntity.ok(kycIds);
+    }
+
+    
+    
+}

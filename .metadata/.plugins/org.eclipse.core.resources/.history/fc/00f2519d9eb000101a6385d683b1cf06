@@ -1,0 +1,62 @@
+package com.ofss.controller;
+
+import com.ofss.model.KycDocument;
+import com.ofss.service.KycDocumentService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/kyc")
+public class KycDocumentController {
+
+    @Autowired
+    private KycDocumentService kycDocumentService;
+
+    // ✅ Upload or re-upload KYC documents
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadKyc(
+            @RequestParam Long customerId,
+            @RequestParam(required = false) MultipartFile panFile,
+            @RequestParam(required = false) MultipartFile aadhaarFile,
+            @RequestParam(required = false) MultipartFile photoFile,
+            @RequestParam(defaultValue = "false") boolean reupload) {
+
+        return kycDocumentService.saveKycFiles(customerId, panFile, aadhaarFile, photoFile, reupload);
+    }
+
+    // ✅ Get KYC details by KYC ID
+    @GetMapping("/{kycId}")
+    public ResponseEntity<KycDocument> getKyc(@PathVariable Long kycId) {
+        return kycDocumentService.getKycById(kycId);
+    }
+
+    // ✅ Download specific KYC file
+    @GetMapping("/file/{kycId}/{type}")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long kycId, @PathVariable String type) {
+        return kycDocumentService.getFileByType(kycId, type);
+    }
+
+    // ✅ Update status from KYC Verification MS
+    @PutMapping("/update-status/{customerId}")
+    public ResponseEntity<String> updateStatus(
+            @PathVariable Long customerId,
+            @RequestBody StatusUpdateRequest request) {
+
+        kycDocumentService.updateStatus(customerId, request.getStatus(), request.isReupload());
+        return ResponseEntity.ok("Status updated successfully!");
+    }
+
+    // 🔹 Inner class for status update payload (no external DTO needed)
+    public static class StatusUpdateRequest {
+        private String status;
+        private boolean reupload;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public boolean isReupload() { return reupload; }
+        public void setReupload(boolean reupload) { this.reupload = reupload; }
+    }
+}

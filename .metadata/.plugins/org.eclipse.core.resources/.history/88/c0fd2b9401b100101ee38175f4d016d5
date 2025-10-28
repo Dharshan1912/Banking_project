@@ -1,0 +1,148 @@
+package com.ofss.service;
+
+import com.ofss.model.KycDocument;
+import com.ofss.repository.KycDocumentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class KycDocumentService {
+
+    @Autowired
+    private KycDocumentRepository kycDocumentRepository;
+
+    // Save or re-upload KYC
+    public ResponseEntity<?> saveKycFiles(Long customerId, MultipartFile panFile, MultipartFile aadhaarFile,
+            MultipartFile photoFile, boolean reupload) {
+try {
+if (customerId == null) return ResponseEntity.badRequest().body("Customer ID required!");
+
+List<KycDocument> existingDocs = kycDocumentRepository.findByCustomerId(customerId);
+
+// Find latest document
+Optional<KycDocument> latestDocOpt = existingDocs.stream()
+.max(Comparator.comparing(KycDocument::getUploadDate));
+
+KycDocument doc;
+
+if (reupload && latestDocOpt.isPresent()) {
+// ✅ Re-upload: use latest document
+doc = latestDocOpt.get();
+} else if (latestDocOpt.isPresent() && "APPROVED".equalsIgnoreCase(latestDocOpt.get().getStatus())) {
+// ❌ Block upload if latest doc is approved and not a re-upload
+return ResponseEntity.badRequest().body("KYC is already approved. No further uploads allowed.");
+} else {
+// ✅ New upload
+doc = new KycDocument();
+doc.setCustomerId(customerId);
+}
+
+// Update files if provided
+if (panFile != null && !panFile.isEmpty()) {
+doc.setPanFileName(panFile.getOriginalFilename());
+doc.setPanFileType(panFile.getContentType());
+doc.setPanFileContent(Base64.getEncoder().encodeToString(panFile.getBytes()));
+}
+
+if (aadhaarFile != null && !aadhaarFile.isEmpty()) {
+doc.setAadhaarFileName(aadhaarFile.getOriginalFilename());
+doc.setAadhaarFileType(aadhaarFile.getContentType());
+doc.setAadhaarFileContent(Base64.getEncoder().encodeToString(aadhaarFile.getBytes()));
+}
+
+if (photoFile != null && !photoFile.isEmpty()) {
+doc.setPhotoFileName(photoFile.getOriginalFilename());
+doc.setPhotoFileType(photoFile.getContentType());
+doc.setPhotoFileContent(Base64.getEncoder().encodeToString(photoFile.getBytes()));
+}
+
+// ✅ Always set status to PENDING_VERIFICATION for re-upload
+doc.setStatus("PENDING_VERIFICATION");
+
+// ✅ Set reupload flag true if it is a re-upload
+if (reupload) {
+doc.setReupload(true);
+}
+
+KycDocument savedDoc = kycDocumentRepository.save(doc);
+
+return ResponseEntity.ok("KYC submitted successfully! KYC ID: " + savedDoc.getKycId());
+
+} catch (IOException e) {
+return ResponseEntity.status(500).body("File processing error: " + e.getMessage());
+}
+}
+
+    // View/download file
+    public ResponseEntity<byte[]> getFileByType(Long kycId, String fileType) {
+        Optional<KycDocument> optDoc = kycDocumentRepository.findById(kycId);
+        if (optDoc.isEmpty()) return ResponseEntity.notFound().build();
+
+        KycDocument doc = optDoc.get();
+        String base64Content, fileName, contentType;
+
+        switch (fileType.toLowerCase()) {
+            case "pan":
+                base64Content = doc.getPanFileContent();
+                fileName = doc.getPanFileName();
+                contentType = doc.getPanFileType();
+                break;
+            case "aadhaar":
+                base64Content = doc.getAadhaarFileContent();
+                fileName = doc.getAadhaarFileName();
+                contentType = doc.getAadhaarFileType();
+                break;
+            case "photo":
+                base64Content = doc.getPhotoFileContent();
+                fileName = doc.getPhotoFileName();
+                contentType = doc.getPhotoFileType();
+                break;
+            default: return ResponseEntity.badRequest().body(null);
+        }
+
+        if (base64Content == null) return ResponseEntity.notFound().build();
+        byte[] bytes = Base64.getDecoder().decode(base64Content);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(bytes);
+    }
+
+    public ResponseEntity<KycDocument> getKycById(Long kycId) {
+        return kycDocumentRepository.findById(kycId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Update status (from KYC Verification MS)
+    public void updateStatus(Long customerId, String status, boolean reupload) {
+        List<KycDocument> existingDocs = kycDocumentRepository.findByCustomerId(customerId);
+
+        Optional<KycDocument> latestDocOpt = existingDocs.stream()
+                .max(Comparator.comparing(KycDocument::getUploadDate));
+
+        latestDocOpt.ifPresent(doc -> {
+            doc.setStatus(status);
+            doc.setReupload(reupload);
+            kycDocumentRepository.save(doc);
+        });
+    }
+    
+    public Long getLatestKycIdByCustomer(Long customerId) {
+        return kycDocumentRepository.findTopByCustomerIdOrderByUploadDateDesc(customerId)
+                .map(KycDocument::getKycId)
+                .orElse(null);
+    }
+
+}

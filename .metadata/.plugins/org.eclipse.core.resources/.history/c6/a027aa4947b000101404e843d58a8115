@@ -1,0 +1,57 @@
+package com.ofss.controller;
+
+import com.ofss.model.KycDocument;
+import com.ofss.service.KycDocumentService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/kyc")
+public class KycDocumentController {
+
+    @Autowired
+    private KycDocumentService kycDocumentService;
+
+    /**
+     * Submit KYC documents (first-time upload or re-upload)
+     * @param customerId Customer ID
+     * @param panFile PAN file
+     * @param aadhaarFile Aadhaar file
+     * @param photoFile Photo file
+     * @param reupload true if re-upload after rejection
+     */
+    @PostMapping(value = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> submitKyc(
+            @RequestParam Long customerId,
+            @RequestParam(value = "panFile", required = false) MultipartFile panFile,
+            @RequestParam(value = "aadhaarFile", required = false) MultipartFile aadhaarFile,
+            @RequestParam(value = "photoFile", required = false) MultipartFile photoFile,
+            @RequestParam(value = "reupload", defaultValue = "false") boolean reupload
+    ) {
+        return kycDocumentService.saveKycFiles(customerId, panFile, aadhaarFile, photoFile, reupload);
+    }
+
+    /**
+     * Download/view a specific file by KYC ID and type
+     * @param kycId KYC ID
+     * @param fileType "pan" | "aadhaar" | "photo"
+     */
+    @GetMapping("/download/{kycId}/{fileType}")
+    public ResponseEntity<byte[]> downloadFile(
+            @PathVariable Long kycId,
+            @PathVariable String fileType
+    ) {
+        return kycDocumentService.getFileByType(kycId, fileType);
+    }
+
+    /**
+     * Fetch full KYC record by KYC ID
+     */
+    @GetMapping("/{kycId}")
+    public ResponseEntity<KycDocument> getKycById(@PathVariable Long kycId) {
+        return kycDocumentService.getKycById(kycId);
+    }
+}

@@ -1,0 +1,114 @@
+package com.ofss.service;
+
+import com.ofss.model.KycDocument;
+import com.ofss.repository.KycDocumentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Optional;
+
+@Service
+public class KycDocumentService {
+
+    @Autowired
+    private KycDocumentRepository kycDocumentRepository;
+
+    // Save or re-upload KYC
+    public ResponseEntity<?> saveKycFiles(Long customerId, MultipartFile panFile, MultipartFile aadhaarFile,
+                                          MultipartFile photoFile, boolean reupload) {
+        try {
+            if (customerId == null) return ResponseEntity.badRequest().body("Customer ID required!");
+
+            Optional<KycDocument> existingOpt = kycDocumentRepository.findByCustomerId(customerId)
+                    .stream().findFirst();
+
+            KycDocument doc;
+
+            if (existingOpt.isPresent() && reupload) {
+                doc = existingOpt.get();
+                doc.setStatus("PENDING_VERIFICATION");
+                doc.setReupload(false);
+            } else if (existingOpt.isPresent() && !reupload) {
+                return ResponseEntity.badRequest().body("KYC already submitted. Use re-upload for rejected files.");
+            } else {
+                doc = new KycDocument();
+                doc.setCustomerId(customerId);
+            }
+
+            if (!reupload) {
+                if (panFile == null || panFile.isEmpty() ||
+                    aadhaarFile == null || aadhaarFile.isEmpty() ||
+                    photoFile == null || photoFile.isEmpty()) {
+                    return ResponseEntity.badRequest().body("All three files must be uploaded initially!");
+                }
+            }
+
+            if (panFile != null && !panFile.isEmpty()) {
+                doc.setPanFileName(panFile.getOriginalFilename());
+                doc.setPanFileType(panFile.getContentType());
+                doc.setPanFileContent(Base64.getEncoder().encodeToString(panFile.getBytes()));
+            }
+
+            if (aadhaarFile != null && !aadhaarFile.isEmpty()) {
+                doc.setAadhaarFileName(aadhaarFile.getOriginalFilename());
+                doc.setAadhaarFileType(aadhaarFile.getContentType());
+                doc.setAadhaarFileContent(Base64.getEncoder().encodeToString(aadhaarFile.getBytes()));
+            }
+
+            if (photoFile != null && !photoFile.isEmpty()) {
+                doc.setPhotoFileName(photoFile.getOriginalFilename());
+                doc.setPhotoFileType(photoFile.getContentType());
+                doc.setPhotoFileContent(Base64.getEncoder().encodeToString(photoFile.getBytes()));
+            }
+
+            KycDocument savedDoc = kycDocumentRepository.save(doc);
+            return ResponseEntity.ok("KYC submitted successfully! KYC ID: " + savedDoc.getKycId());
+
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("File processing error: " + e.getMessage());
+        }
+    }
+
+    // View/download file
+    public ResponseEntity<byte[]> getFileByType(Long kycId, String fileType) {
+        Optional<KycDocument> optDoc = kycDocumentRepository.findById(kycId);
+        if (optDoc.isEmpty()) return ResponseEntity.notFound().build();
+
+        KycDocument doc = optDoc.get();
+        String base64Content, fileName, contentType;
+
+        switch (fileType.toLowerCase()) {
+            case "pan":
+                base64Content = doc.getPanFileContent();
+                fileName = doc.getPanFileName();
+                contentType = doc.getPanFileType();
+                break;
+            case "aadhaar":
+                base64Content = doc.getAadhaarFileContent();
+                fileName = doc.getAadhaarFileName();
+                contentType = doc.getAadhaarFileType();
+                break;
+            case "photo":
+                base64Content = doc.getPhotoFileContent();
+                fileName = doc.getPhotoFileName();
+                contentType = doc.getPhotoFileType();
+                break;
+            default: return ResponseEntity.badRequest().body(null);
+        }
+
+        if (base64Content == null) return ResponseEntity.notFound().build();
+        byte[] bytes = Base64.getDecoder().decode(base64Content);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(bytes);
+    }
+
+    public ResponseEntity<KycDocument> getKycById(Long k

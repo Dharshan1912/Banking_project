@@ -1,0 +1,22 @@
+package com.ofss.controller;
+
+import com.ofss.service.AccountService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    @Autowired
+    private AccountService accountService;
+
+    // Create a new account
+    @PostMapping("/create")
+    public ResponseEntity<?> createAccount(
+            @RequestParam Long customerId,
+            @RequestParam String accountType) {
+        return accountService.createAccount(customerId, accountType);
+    }
+}

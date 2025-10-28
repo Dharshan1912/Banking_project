@@ -1,0 +1,91 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${kycDocumentMs.url}")
+    private String kycDocumentMsUrl;
+
+    @Value("${kycVerificationMs.url}")
+    private String kycVerificationMsUrl;
+
+    // ✅ Generate unique account number
+    private String generateAccountNumber() {
+        Random rand = new Random();
+        String accNum;
+        do {
+            accNum = "AC" + (100000 + rand.nextInt(900000));
+        } while (accountRepository.existsByAccountNumber(accNum));
+        return accNum;
+    }
+
+    // ✅ Get latest KYC ID for customer
+    public Long getLatestKycIdForCustomer(Long customerId) {
+        String url = kycDocumentMsUrl + "customer/" + customerId;
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return Long.valueOf(String.valueOf(response.getBody().get("kycId")));
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching KYC: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // ✅ Get KYC verification status
+    public String getKycStatus(Long kycId) {
+        String url = kycVerificationMsUrl + "status/" + kycId;
+        try {
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            if (response.getStatusCode().is2xxSuccessful()) {
+                return response.getBody();
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching KYC status: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // ✅ Create Account only if KYC is APPROVED
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+
+        Long kycId = getLatestKycIdForCustomer(customerId);
+        if (kycId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("No KYC found for this customer.");
+        }
+
+        String kycStatus = getKycStatus(kycId);
+        if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("KYC not approved. Cannot create account.");
+        }
+
+        Account account = new Account();
+        account.setCustomerId(customerId);
+        account.setAccountType(accountType);
+        account.setAccountNumber(generateAccountNumber());
+        account.setAccountStatus("ACTIVE");
+
+        Account savedAccount = accountRepository.save(account);
+        return ResponseEntity.ok(savedAccount);
+    }
+}

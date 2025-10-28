@@ -1,0 +1,78 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${kyc.base-url}")
+    private String kycVerificationUrl; // http://localhost:8083/api/kyc-verification/status/
+
+    // ✅ Create new account
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // ✅ First, get latest KYC ID using Document MS endpoint
+            String kycDocUrl = "http://localhost:8083/api/kyc-documents/customer/" + customerId + "/latest";
+            ResponseEntity<Long> kycIdResponse = restTemplate.getForEntity(kycDocUrl, Long.class);
+
+            if (!kycIdResponse.getStatusCode().is2xxSuccessful() || kycIdResponse.getBody() == null) {
+                return ResponseEntity.badRequest().body("No KYC record found for this customer.");
+            }
+
+            Long kycId = kycIdResponse.getBody();
+
+            // ✅ Now call status/{kycId}
+            String kycStatusUrl = kycVerificationUrl + kycId;
+            String kycStatus = restTemplate.getForObject(kycStatusUrl, String.class);
+
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity.badRequest().body("Cannot create account. KYC not approved.");
+            }
+
+            // ✅ Validate duplicate accountType
+            if (accountRepository.findByCustomerIdAndAccountType(customerId, accountType).isPresent()) {
+                return ResponseEntity.badRequest().body("Customer already has a " + accountType + " account.");
+            }
+
+            // ✅ Generate Account Number
+            String accountNumber = generateAccountNumber();
+
+            // ✅ Save Account
+            Account account = new Account();
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType.toUpperCase());
+            account.setAccountStatus("ACTIVE");
+            account.setAccountNumber(accountNumber);
+
+            Account saved = accountRepository.save(account);
+
+            return ResponseEntity.ok("Account created successfully! Account Number: " + saved.getAccountNumber());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+        }
+    }
+
+    private String generateAccountNumber() {
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            sb.append(random.nextInt(10));
+        }
+        return sb.toString();
+    }
+}

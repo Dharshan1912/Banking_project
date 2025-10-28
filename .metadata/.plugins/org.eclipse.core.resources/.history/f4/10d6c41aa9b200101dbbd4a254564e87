@@ -1,0 +1,12 @@
+package com.ofss.dto;
+
+public class StatusUpdateRequest {
+    private String status;
+    private boolean reupload;
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public boolean isReupload() { return reupload; }
+    public void setReupload(boolean reupload) { this.reupload = reupload; }
+}

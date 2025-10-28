@@ -1,0 +1,56 @@
+package com.ofss.service;
+
+import com.ofss.model.Customer;
+import com.ofss.repository.CustomerRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class CustomerService {
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    // Register customer with uniqueness checks
+    public ResponseEntity<?> registerCustomer(Customer customer) {
+        try {
+            if (customerRepository.existsByEmail(customer.getEmail())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email already exists");
+            }
+            if (customerRepository.existsByPhone(customer.getPhone())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Phone already exists");
+            }
+            if (customerRepository.existsByPan(customer.getPan())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("PAN already exists");
+            }
+            if (customerRepository.existsByAadhaar(customer.getAadhaar())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Aadhaar already exists");
+            }
+
+            Customer savedCustomer = customerRepository.save(customer);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body("Customer registered successfully! Customer ID: " + savedCustomer.getCustomerId());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error while registering customer: " + e.getMessage());
+        }
+    }
+
+    // Get all customers
+    public ResponseEntity<List<Customer>> getAllCustomers() {
+        List<Customer> customers = (List<Customer>) customerRepository.findAll();
+        return ResponseEntity.ok(customers);
+    }
+
+    // Get customer by ID
+    public ResponseEntity<?> getCustomerById(Long id) {
+        return customerRepository.findById(id)
+                .map(customer -> ResponseEntity.ok(customer))
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body("Customer not found"));
+    }
+}

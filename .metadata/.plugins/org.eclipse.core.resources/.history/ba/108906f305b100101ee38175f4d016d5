@@ -1,0 +1,36 @@
+package com.ofss.controller;
+
+import com.ofss.model.Account;
+import com.ofss.service.AccountService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    @Autowired
+    private AccountService accountService;
+
+    // ✅ Create new account
+    @PostMapping("/create")
+    public ResponseEntity<?> createAccount(@RequestParam Long customerId,
+                                           @RequestParam String accountType) {
+        return accountService.createAccount(customerId, accountType);
+    }
+
+    // ✅ Get all accounts
+    @GetMapping
+    public List<Account> getAllAccounts() {
+        return accountService.getAllAccounts();
+    }
+
+    // ✅ Get accounts by customer
+    @GetMapping("/customer/{customerId}")
+    public List<Account> getAccountsByCustomer(@PathVariable Long customerId) {
+        return accountService.getAccountsByCustomer(customerId);
+    }
+}

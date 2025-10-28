@@ -1,0 +1,81 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    // URL of KYC Verification MS
+    private final String kycVerificationMsUrl = "http://localhost:8081/api/kyc-verification/status/";
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // 1️⃣ Check latest KYC status
+            ResponseEntity<Map> response = restTemplate.getForEntity(
+                    kycVerificationMsUrl + customerId, Map.class
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return ResponseEntity.badRequest().body("KYC status not found for customer.");
+            }
+
+            String kycStatus = String.valueOf(response.getBody().get("status"));
+
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity.badRequest().body("Cannot create account: KYC not approved.");
+            }
+
+            // 2️⃣ Check if customer already has an account of this type
+            Optional<Account> existing = accountRepository.findByCustomerIdAndAccountType(customerId, accountType);
+            if (existing.isPresent()) {
+                return ResponseEntity.badRequest().body("Customer already has an account of this type.");
+            }
+
+            // 3️⃣ Generate mock account number (12-digit random)
+            String accountNumber = "AC" + (100000000000L + Math.abs(new Random().nextLong() % 900000000000L));
+
+            // 4️⃣ Get sequence value for accountId (Oracle 11g)
+            Long accountId = ((Number) entityManager
+                    .createNativeQuery("SELECT SEQ_ACCOUNT_NEW.NEXTVAL FROM dual")
+                    .getSingleResult()).longValue();
+
+            // 5️⃣ Save account
+            Account account = new Account();
+            account.setAccountId(accountId);
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType);
+            account.setAccountStatus("ACTIVE");
+            account.setAccountNumber(accountNumber);
+            account.setCreatedDate(LocalDateTime.now());
+
+            accountRepository.save(account);
+
+            return ResponseEntity.ok(account);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error creating account: " + e.getMessage());
+        }
+    }
+}

@@ -1,0 +1,98 @@
+package com.ofss.service;
+
+import com.ofss.dto.AccountRequest;
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Random;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    private final String KYC_URL = "http://localhost:8083/api/kyc-verification/status/";
+
+    // Allowed account types
+    private final List<String> ALLOWED_TYPES = List.of("SAVINGS", "CURRENT", "SALARY");
+
+    public Account createAccount(AccountRequest request) {
+
+        Long customerId = request.getCustomerId();
+        String accountType = request.getAccountType() != null ? request.getAccountType().toUpperCase() : null;
+
+        // Basic validations
+        if (customerId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Customer ID cannot be null");
+        }
+
+        if (accountType == null || !ALLOWED_TYPES.contains(accountType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid account type. Allowed: SAVINGS, CURRENT, SALARY");
+        }
+
+        // KYC validation
+        String kycStatus;
+        try {
+            kycStatus = restTemplate.getForObject(KYC_URL + customerId, String.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unable to fetch KYC status for customer: " + customerId);
+        }
+
+        if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "KYC not approved. Cannot create account.");
+        }
+
+        // Duplicate account type check
+        if (accountRepository.existsByCustomerIdAndAccountType(customerId, accountType)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Customer already has a " + accountType + " account.");
+        }
+
+        // Create account
+        Account account = new Account();
+        account.setCustomerId(customerId);
+        account.setAccountType(accountType);
+        account.setAccountStatus("ACTIVE");
+        account.setCreatedDate(new Date());
+        account.setAccountNumber(generateUniqueAccountNumber());
+
+        return accountRepository.save(account);
+    }
+
+    // Generate unique 12-digit account number
+    private String generateUniqueAccountNumber() {
+        Random random = new Random();
+        String accountNumber;
+
+        do {
+            long number = 100000000000L + (long)(random.nextDouble() * 899999999999L);
+            accountNumber = String.valueOf(number);
+        } while (accountRepository.existsByAccountNumber(accountNumber));
+
+        return accountNumber;
+    }
+
+    // Get all accounts
+    public List<Account> getAllAccounts() {
+        return (List<Account>) accountRepository.findAll();
+    }
+
+    // Get accounts by customer
+    public List<Account> getAccountsByCustomer(Long customerId) {
+        return accountRepository.findByCustomerId(customerId);
+    }
+}

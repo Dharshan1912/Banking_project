@@ -1,0 +1,21 @@
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    // Fetch limited account IDs
+    public List<Long> getAccountIds(Long customerId, String accountType, int limit) {
+        return accountRepository.findAccountIdsNative(customerId, accountType, limit);
+    }
+
+    // Fetch latest status
+    public AccountNew getLatestStatus(Long customerId, String accountType) {
+        List<AccountNew> list = accountRepository.findLatestStatus(customerId, accountType);
+        return list.isEmpty() ? null : list.get(0); // Return the latest one
+    }
+}

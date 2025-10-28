@@ -1,0 +1,12 @@
+package com.ofss.repository;
+
+import com.ofss.model.KycDocument;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface KycDocumentRepository extends CrudRepository<KycDocument, Long> {
+    List<KycDocument> findByCustomerId(Long customerId);
+}

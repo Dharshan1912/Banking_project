@@ -1,0 +1,49 @@
+package com.ofss.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import com.ofss.model.Account;
+import com.ofss.repository.AccountRepository;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${kyc.base-url}")
+    private String kycBaseUrl; // e.g., http://localhost:8083/api/kyc-verification/status-by-customer/
+
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        try {
+            // 1️⃣ Check KYC status from KYC microservice
+            String kycStatus = restTemplate.getForObject(kycBaseUrl + customerId, String.class);
+
+            if (!"APPROVED".equalsIgnoreCase(kycStatus)) {
+                return ResponseEntity
+                        .badRequest()
+                        .body("Cannot create account. KYC is not approved for this customer.");
+            }
+
+            // 2️⃣ If approved, create account
+            Account account = new Account();
+            account.setCustomerId(customerId);
+            account.setAccountType(accountType);
+            account.setBalance(0.0); // default balance
+
+            Account savedAccount = accountRepository.save(account);
+            return ResponseEntity.ok(savedAccount);
+
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(500)
+                    .body("Error while creating account: " + e.getMessage());
+        }
+    }
+}

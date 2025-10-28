@@ -1,0 +1,47 @@
+package com.ofss.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "ACCOUNT_NEW")
+public class Account {
+
+    @Id
+    @Column(name = "ACCOUNT_ID")
+    private Long accountId;
+
+    @Column(name = "CUSTOMER_ID", nullable = false)
+    private Long customerId;
+
+    @Column(name = "ACCOUNT_NUMBER", unique = true, nullable = false)
+    private String accountNumber;
+
+    @Column(name = "ACCOUNT_TYPE", nullable = false)
+    private String accountType;
+
+    @Column(name = "ACCOUNT_STATUS", nullable = false)
+    private String accountStatus;
+
+    @Column(name = "CREATED_DATE")
+    private LocalDateTime createdDate;
+
+    // Getters and Setters
+    public Long getAccountId() { return accountId; }
+    public void setAccountId(Long accountId) { this.accountId = accountId; }
+
+    public Long getCustomerId() { return customerId; }
+    public void setCustomerId(Long customerId) { this.customerId = customerId; }
+
+    public String getAccountNumber() { return accountNumber; }
+    public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+
+    public String getAccountType() { return accountType; }
+    public void setAccountType(String accountType) { this.accountType = accountType; }
+
+    public String getAccountStatus() { return accountStatus; }
+    public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
+
+    public LocalDateTime getCreatedDate() { return createdDate; }
+    public void setCreatedDate(LocalDateTime createdDate) { this.createdDate = createdDate; }
+}

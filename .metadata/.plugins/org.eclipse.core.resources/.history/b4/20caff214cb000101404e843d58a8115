@@ -1,0 +1,135 @@
+package com.ofss.service;
+
+import com.ofss.model.KycVerification;
+import com.ofss.repository.KycVerificationRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
+
+@Service
+public class KycVerificationService {
+
+    @Autowired
+    private KycVerificationRepository verificationRepository;
+
+    @Autowired
+    private JavaMailSender mailSender;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${EMAIL_USERNAME}")
+    private String username;
+
+    @Value("${kycDocumentMs.url}")
+    private String kycDocumentMsUrl;
+
+    @Value("${customerMs.url}")
+    private String customerMsUrl;
+
+    public KycVerification verifyKyc(Long kycId, String verifiedBy, String status, String remarks) {
+
+        Optional<KycVerification> existing = verificationRepository.findByKycId(kycId)
+                .stream()
+                .findFirst();
+
+        KycVerification verification = existing.orElseGet(() -> {
+            KycVerification v = new KycVerification();
+            v.setKycId(kycId);
+            return v;
+        });
+
+        String cleanStatus = (status == null) ? "" : status.trim().toUpperCase();
+
+        verification.setVerifiedBy(verifiedBy);
+        verification.setStatus(cleanStatus);
+        verification.setRemarks(remarks);
+        verification.setVerificationDate(new Date());
+
+        KycVerification savedVerification = verificationRepository.save(verification);
+
+        try {
+            // 1️⃣ Fetch KYC Document from KycDocumentMS
+            ResponseEntity<Map> kycResponse = restTemplate.getForEntity(
+                    kycDocumentMsUrl + kycId, Map.class
+            );
+
+            if (kycResponse.getStatusCode().is2xxSuccessful() && kycResponse.getBody() != null) {
+                Map kycDoc = kycResponse.getBody();
+                Long customerId = Long.valueOf(String.valueOf(kycDoc.get("customerId")));
+
+                // 2️⃣ Determine new status for KYC Document
+                String newDocStatus;
+                boolean reuploadFlag;
+
+                if ("APPROVED".equals(cleanStatus)) {
+                    newDocStatus = "APPROVED";
+                    reuploadFlag = false;
+                } else if ("REJECTED".equals(cleanStatus)) {
+                    newDocStatus = "REUPLOAD_REQUIRED";
+                    reuploadFlag = true;
+                } else {
+                    newDocStatus = "PENDING_VERIFICATION";
+                    reuploadFlag = false;
+                }
+
+                // 3️⃣ Update KYC Document MS
+                StatusUpdateRequest updateRequest = new StatusUpdateRequest();
+                updateRequest.setStatus(newDocStatus);
+                updateRequest.setReupload(reuploadFlag);
+
+                restTemplate.put(kycDocumentMsUrl + "update-status/" + customerId, updateRequest);
+
+                // 4️⃣ Send email if APPROVED or REJECTED
+                ResponseEntity<Map> customerResponse = restTemplate.getForEntity(
+                        customerMsUrl + customerId, Map.class
+                );
+
+                if (customerResponse.getStatusCode().is2xxSuccessful() && customerResponse.getBody() != null) {
+                    Map customer = customerResponse.getBody();
+                    String customerEmail = String.valueOf(customer.get("email"));
+
+                    if (customerEmail != null && !customerEmail.isEmpty()
+                            && (cleanStatus.equals("APPROVED") || cleanStatus.equals("REJECTED"))) {
+                        sendStatusEmail(customerEmail, cleanStatus, remarks);
+                        System.out.println("✅ Email sent to: " + customerEmail);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Error updating KYC Document or sending email: " + e.getMessage());
+        }
+
+        return savedVerification;
+    }
+
+    private void sendStatusEmail(String toEmail, String status, String remarks) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(username);
+            message.setTo(toEmail);
+            message.setSubject("KYC Verification " + status);
+            message.setText("Dear Customer,\n\nYour KYC has been " + status +
+                    ".\nRemarks: " + remarks +
+                    "\n\nRegards,\nKYC Verification Team");
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            System.err.println("Error sending email: " + e.getMessage());
+        }
+    }
+
+    public Optional<KycVerification> getVerificationStatus(Long kycId) {
+        return verificationRepository.findByKycId(kycId)
+                .stream()
+                .findFirst();
+    }
+}

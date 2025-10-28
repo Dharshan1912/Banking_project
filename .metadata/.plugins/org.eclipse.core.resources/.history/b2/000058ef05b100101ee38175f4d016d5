@@ -1,0 +1,77 @@
+package com.ofss.service;
+
+import com.ofss.model.Account;
+import com.ofss.model.KycDocument;
+import com.ofss.repository.AccountRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class AccountService {
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    // Create account only if customer exists and KYC approved
+    public ResponseEntity<?> createAccount(Long customerId, String accountType) {
+        // 1️⃣ Check if customer exists
+        String customerUrl = "http://localhost:8081/api/customers/" + customerId;
+        ResponseEntity<String> customerResponse = restTemplate.getForEntity(customerUrl, String.class);
+        if (customerResponse.getStatusCode() != HttpStatus.OK) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Customer not found with ID: " + customerId);
+        }
+
+        // 2️⃣ Check latest KYC status
+        String kycUrl = "http://localhost:8082/api/kyc?customerId=" + customerId;
+        ResponseEntity<KycDocument[]> kycResponse = restTemplate.getForEntity(kycUrl, KycDocument[].class);
+
+        KycDocument[] docs = kycResponse.getBody();
+        if (docs == null || docs.length == 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("KYC not uploaded for customer ID: " + customerId);
+        }
+
+        // Get latest document
+        KycDocument latestDoc = List.of(docs).stream()
+                .max((d1, d2) -> d1.getUploadDate().compareTo(d2.getUploadDate()))
+                .orElse(null);
+
+        if (latestDoc == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("No KYC document found");
+        }
+
+        // Check KYC status
+        if (!"APPROVED".equalsIgnoreCase(latestDoc.getStatus())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("KYC not approved yet. Current status: " + latestDoc.getStatus());
+        }
+
+        // 3️⃣ Create account
+        Account account = new Account();
+        account.setCustomerId(customerId);
+        account.setAccountType(accountType);
+        accountRepository.save(account);
+
+        return ResponseEntity.ok("Account created successfully! Account ID: " + account.getAccountId());
+    }
+
+    // Get all accounts
+    public List<Account> getAllAccounts() {
+        return accountRepository.findAll();
+    }
+
+    // Get accounts by customer
+    public List<Account> getAccountsByCustomer(Long customerId) {
+        return accountRepository.findByCustomerId(customerId);
+    }
+}

@@ -1,0 +1,86 @@
+package com.ofss.controller;
+
+import com.ofss.model.Customer;
+import com.ofss.service.CustomerService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Parameter;
+
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/customers")
+@Tag(name = "Customer API", description = "Operations related to customers")
+public class CustomerController {
+
+    @Autowired
+    private CustomerService customerService;
+
+    // Register new customer
+    @Operation(
+            summary = "Register a new customer",
+            description = "This API will create a new customer record after validating input data"
+    )
+    
+    @PostMapping("/register")
+    public ResponseEntity<?> registerCustomer(@Valid @RequestBody Customer customer, BindingResult result) {
+        if (result.hasErrors()) {
+            String errors = result.getFieldErrors()
+                    .stream()
+                    .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                    .reduce("", (a, b) -> a + "\n" + b);
+            return ResponseEntity.badRequest().body(errors);
+        }
+        return customerService.registerCustomer(customer);
+    }
+
+    // Get all customers
+    @Operation(
+            summary = "Fetch all customers",
+            description = "Returns a list of all registered customers"
+    )
+    @GetMapping
+    public ResponseEntity<List<Customer>> getAllCustomers() {
+        return customerService.getAllCustomers();
+    }
+
+    
+    // Get customer by ID
+    @Operation(
+            summary = "Get customer by ID",
+            description = "Provides details of a specific customer using customer ID"
+    )
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getCustomerById(@PathVariable Long id) {
+        return customerService.getCustomerById(id);
+    }
+    
+    
+ // :small_blue_diamond: PATCH: Update existing customer
+    @Operation(
+            summary = "Update existing customer details",
+            description = "Partial or full update of a customer's information"
+    )
+    @PatchMapping("/{id}")
+    public ResponseEntity<?> updateCustomer(@PathVariable Long id, @RequestBody Customer updatedCustomer) {
+        return customerService.updateCustomer(id, updatedCustomer);
+    }
+    
+    
+    // :small_blue_diamond: DELETE: Remove customer
+    @Operation(
+            summary = "Delete a customer",
+            description = "Removes a customer record from the system"
+    )
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteCustomer(@PathVariable Long id) {
+        return customerService.deleteCustomer(id);
+    }
+}

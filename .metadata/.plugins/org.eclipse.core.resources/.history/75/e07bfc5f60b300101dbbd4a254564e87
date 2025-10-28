@@ -1,0 +1,112 @@
+package com.ofss.controller;
+
+import com.ofss.model.KycDocument;
+import com.ofss.service.KycDocumentService;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Parameter;
+
+@RestController
+@RequestMapping("/api/kyc")
+@Tag(name = "KYC Document API", description = "Operations related to KYC document upload, download, and updates")
+public class KycDocumentController {
+
+    @Autowired
+    private KycDocumentService kycDocumentService;
+
+    // ✅ Upload or re-upload KYC documents
+    @Operation(
+            summary = "Upload or re-upload KYC documents",
+            description = "Uploads customer's PAN, Aadhaar, and Photo documents. "
+                        + "Supports both fresh upload and re-upload scenario"
+    )
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadKyc(
+    		@Parameter(description = "Customer ID for whom the documents are uploaded")
+            @RequestParam Long customerId,
+            
+            @Parameter(description = "PAN Card document file")
+            @RequestParam(required = false) MultipartFile panFile,
+            
+            @Parameter(description = "Aadhaar Card document file")
+            @RequestParam(required = false) MultipartFile aadhaarFile,
+            
+            @Parameter(description = "Customer Photo")
+            @RequestParam(required = false) MultipartFile photoFile,
+            
+            @Parameter(description = "Flag to indicate re-upload")
+            @RequestParam(defaultValue = "false") boolean reupload) {
+
+        return kycDocumentService.saveKycFiles(customerId, panFile, aadhaarFile, photoFile, reupload);
+    }
+    
+    @Operation(
+            summary = "Fetch KYC ID by Customer ID",
+            description = "Returns the associated KYC ID using customer ID reference"
+    )
+    @GetMapping("/customer/{cusId}")
+    public ResponseEntity<Long> getKycIdByCusid(@PathVariable Long cusId) {
+        Long kycId = kycDocumentService.getKycIdByCusId(cusId);
+        if (kycId != null) {
+            return ResponseEntity.ok(kycId);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // ✅ Get KYC details by KYC ID
+    @Operation(
+            summary = "Get KYC document details by KYC ID",
+            description = "Fetches stored KYC document details such as filename, status, and uploaded date"
+    )
+    @GetMapping("/{kycId}")
+    public ResponseEntity<KycDocument> getKyc(@PathVariable Long kycId) {
+        return kycDocumentService.getKycById(kycId);
+    }
+
+    // ✅ Download specific KYC file
+    @Operation(
+            summary = "Download specific KYC file",
+            description = "Downloads PAN/Aadhaar/Photo by specifying the KYC ID and file type"
+    )
+    @GetMapping("/file/{kycId}/{type}")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long kycId, @PathVariable String type) {
+        return kycDocumentService.getFileByType(kycId, type);
+    }
+
+    // ✅ Update status from KYC Verification MS
+    @Operation(
+            summary = "Update KYC status",
+            description = "This API is called by Verification MS to update the KYC status "
+                        + "like PENDING_VERIFICATION / APPROVED / REUPLOAD_REQUIRED"
+    )
+    @PutMapping("/update-status/{customerId}")
+    public ResponseEntity<String> updateStatus(
+            @PathVariable Long customerId,
+            @RequestBody StatusUpdateRequest request) {
+
+        kycDocumentService.updateStatus(customerId, request.getStatus(), request.isReupload());
+        return ResponseEntity.ok("Status updated successfully!");
+    }
+
+    // 🔹 Inner class for status update payload
+    public static class StatusUpdateRequest {
+        private String status;
+        private boolean reupload;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public boolean isReupload() { return reupload; }
+        public void setReupload(boolean reupload) { this.reupload = reupload; }
+    }
+   
+    
+}

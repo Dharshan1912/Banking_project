@@ -1,0 +1,161 @@
+package com.ofss.service;
+
+import com.ofss.model.KycDocument;
+import com.ofss.repository.KycDocumentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class KycDocumentService {
+
+    @Autowired
+    private KycDocumentRepository kycDocumentRepository;
+
+    // ✅ Upload / Re-upload KYC documents
+    public ResponseEntity<?> saveKycFiles(Long customerId, MultipartFile panFile, MultipartFile aadhaarFile,
+                                          MultipartFile photoFile, boolean reupload) {
+        try {
+            if (customerId == null)
+                return ResponseEntity.badRequest().body("Customer ID required!");
+
+            List<KycDocument> existingDocs = kycDocumentRepository.findByCustomerId(customerId);
+
+            // ✅ Get latest KYC record
+            Optional<KycDocument> latestDocOpt = existingDocs.stream()
+                    .max(Comparator.comparing(KycDocument::getUploadDate));
+
+            KycDocument doc;
+
+            if (latestDocOpt.isPresent()) {
+                doc = latestDocOpt.get();
+                String currentStatus = doc.getStatus();
+
+                // ✅ Block upload if already approved
+                if ("APPROVED".equalsIgnoreCase(currentStatus)) {
+                    return ResponseEntity.badRequest().body("❌ KYC already approved. Upload not allowed!");
+                }
+
+                // ✅ If reupload required but no reupload flag passed
+                if ("REUPLOAD_REQUIRED".equalsIgnoreCase(currentStatus) && !reupload) {
+                    return ResponseEntity.badRequest().body("❌ Re-upload flag must be TRUE!");
+                }
+
+                if (reupload) {
+                    doc.setReupload(true);
+                }
+
+            } else {
+                // ✅ No document exists for customer → new upload
+                doc = new KycDocument();
+                doc.setCustomerId(customerId);
+            }
+
+            // ✅ Add/replace files only if provided
+            if (panFile != null && !panFile.isEmpty()) {
+                doc.setPanFileName(panFile.getOriginalFilename());
+                doc.setPanFileType(panFile.getContentType());
+                doc.setPanFileContent(Base64.getEncoder().encodeToString(panFile.getBytes()));
+            }
+
+            if (aadhaarFile != null && !aadhaarFile.isEmpty()) {
+                doc.setAadhaarFileName(aadhaarFile.getOriginalFilename());
+                doc.setAadhaarFileType(aadhaarFile.getContentType());
+                doc.setAadhaarFileContent(Base64.getEncoder().encodeToString(aadhaarFile.getBytes()));
+            }
+
+            if (photoFile != null && !photoFile.isEmpty()) {
+                doc.setPhotoFileName(photoFile.getOriginalFilename());
+                doc.setPhotoFileType(photoFile.getContentType());
+                doc.setPhotoFileContent(Base64.getEncoder().encodeToString(photoFile.getBytes()));
+            }
+
+            // ✅ Every upload / reupload resets status
+            doc.setStatus("PENDING_VERIFICATION");
+
+            KycDocument savedDoc = kycDocumentRepository.save(doc);
+
+            return ResponseEntity.ok("✅ KYC submitted successfully! KYC ID: " + savedDoc.getKycId());
+
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("File processing error: " + e.getMessage());
+        }
+    }
+
+    // ✅ Download file
+    public ResponseEntity<byte[]> getFileByType(Long kycId, String fileType) {
+        Optional<KycDocument> optDoc = kycDocumentRepository.findById(kycId);
+        if (optDoc.isEmpty()) return ResponseEntity.notFound().build();
+
+        KycDocument doc = optDoc.get();
+        String base64Content, fileName, contentType;
+
+        switch (fileType.toLowerCase()) {
+            case "pan":
+                base64Content = doc.getPanFileContent();
+                fileName = doc.getPanFileName();
+                contentType = doc.getPanFileType();
+                break;
+            case "aadhaar":
+                base64Content = doc.getAadhaarFileContent();
+                fileName = doc.getAadhaarFileName();
+                contentType = doc.getAadhaarFileType();
+                break;
+            case "photo":
+                base64Content = doc.getPhotoFileContent();
+                fileName = doc.getPhotoFileName();
+                contentType = doc.getPhotoFileType();
+                break;
+            default:
+                return ResponseEntity.badRequest().body(null);
+        }
+
+        if (base64Content == null) return ResponseEntity.notFound().build();
+
+        byte[] bytes = Base64.getDecoder().decode(base64Content);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(bytes);
+    }
+
+    // ✅ Get KYC by ID
+    public ResponseEntity<KycDocument> getKycById(Long kycId) {
+        return kycDocumentRepository.findById(kycId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ✅ Update status from Verification MS
+    public void updateStatus(Long customerId, String status, boolean reupload) {
+
+        List<KycDocument> existingDocs = kycDocumentRepository.findByCustomerId(customerId);
+
+        Optional<KycDocument> latestDocOpt = existingDocs.stream()
+                .max(Comparator.comparing(KycDocument::getUploadDate));
+
+        latestDocOpt.ifPresent(doc -> {
+
+            if ("APPROVED".equalsIgnoreCase(status)) {
+                doc.setStatus("APPROVED");
+                doc.setReupload(false);
+            }
+            else if ("REJECTED".equalsIgnoreCase(status)) {
+                doc.setStatus("REUPLOAD_REQUIRED");
+                doc.setReupload(true);
+            }
+
+            kycDocumentRepository.save(doc);
+        });
+    }
+}
